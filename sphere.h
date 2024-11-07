@@ -1,41 +1,48 @@
 #ifndef SPHEREH
 #define SPHEREH
 
-#include "hitable.h"
+#include "hittable.h"
 
-class sphere: public hitable {
+class sphere: public hittable {
     public:
-        sphere() {}
-        sphere(vec3 cen, float r) : center(cen), radius (r) {};
-        virtual bool hit (const ray& r, float tmin, float tmax, hit_record& rec) const;
-        vec3 center;
-        float radius;
+        sphere(const point3& center, double radius, shared_ptr<material> mat) : center(center), radius(std::fmax(0,radius)), mat(mat) {
+        }
+
+        bool hit(const ray& r, interval ray_t, hit_record& rec) const override {
+            vec3 oc = center - r.origin();
+            auto a = r.direction().length_squared();
+            auto h = dot(r.direction(), oc);
+            auto c = oc.length_squared() - radius*radius;
+
+            auto discriminant = h*h - a*c;
+            if (discriminant < 0)
+                return false;
+
+            auto sqrtd = std::sqrt(discriminant);
+
+            // Find the nearest root in the acceptable range
+            auto root = (h - sqrtd) / a;
+
+            if (!ray_t.surrounds(root)) {
+                root = (h + sqrtd) / a;
+                if (!ray_t.surrounds(root)) 
+                    return false;
+            }
+
+            rec.t = root;
+            rec.p = r.at(rec.t);
+            vec3 outward_normal = (rec.p - center) / radius;
+            rec.set_face_normal(r, outward_normal);
+            rec.mat = mat;
+
+            return true;
+        }
+
+    private:
+        point3 center;
+        double radius;
+        shared_ptr<material> mat;
+
 };
-
-bool sphere::hit(const ray& r, float t_min, float t_max, hit_record& rec) const {
-    vec3 oc = r.origin() - center;
-    float a = dot(r.direction(), r.direction());
-    float b = dot(oc, r.direction());
-    float c = dot(oc,oc) - radius*radius;
-    float discriminant = b*b - a*c;
-    if (discriminant > 0) {
-        float temp = (-b - sqrt(b*b-a*c)) / a;
-        if (temp < t_max && temp > t_min) {
-            rec.t = temp;
-            rec.p = r.point_at_parameter(rec.t);
-            rec.normal = (rec.p - center) / radius;
-            return true;
-        }
-        temp = (-b + sqrt(b*b-a*c))/a;
-        if (temp < t_max && temp > t_min) {
-            rec.t = temp;
-            rec.p = r.point_at_parameter(rec.t);
-            rec.normal = (rec.p - center) / radius;
-            return true;
-        }
-    }
-    return false;
-}
-
 
 #endif
